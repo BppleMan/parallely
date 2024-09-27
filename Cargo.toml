@@ -1,0 +1,10 @@
+[package]
+name = "parallely"
+version = "0.1.0"
+description = "parallely is a is a command line process parallelization executor."
+authors = ["BppleMan"]
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/bppleman/parrallely"
+
+[dependencies]
