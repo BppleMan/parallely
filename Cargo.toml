@@ -5,7 +5,7 @@ description = "parallely is a command line process parallelization executor."
 authors = ["BppleMan"]
 edition = "2021"
 license = "Apache-2.0"
-repository = "https://github.com/bppleman/parrallely"
+repository = "https://github.com/bppleman/parallely"
 
 [dependencies]
 ansi-to-tui = "6.0.0"
