@@ -1,6 +1,6 @@
 [package]
 name = "parallely"
-version = "0.1.2"
+version = "0.1.3"
 description = "parallely is a command line process parallelization executor."
 authors = ["BppleMan"]
 edition = "2021"
