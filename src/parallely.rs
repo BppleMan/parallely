@@ -9,8 +9,13 @@ pub struct Parallely {
     #[arg(short, long)]
     pub commands: Vec<String>,
 
-    #[arg(long)]
-    pub wait: bool,
+    /// Exit on all sub-processes complete.
+    #[arg(long = "eoc")]
+    pub exit_on_complete: bool,
+
+    /// Write log into $(PWD)/logs.
+    #[arg(short, long)]
+    pub debug: bool,
 }
 
 #[derive(Debug)]

@@ -25,7 +25,7 @@ type ErrorReceiver = mpsc::UnboundedReceiver<color_eyre::Report>;
 pub struct App {
     error_sender: Option<ErrorSender>,
     console_states: Vec<ConsoleState>,
-    should_be_wait: bool,
+    exit_on_complete: bool,
     should_be_quit: bool,
 }
 
@@ -43,7 +43,7 @@ impl App {
         let (error_sender, mut error_receiver): (ErrorSender, ErrorReceiver) =
             mpsc::unbounded_channel();
         self.error_sender = Some(error_sender.clone());
-        self.should_be_wait = parallely.wait;
+        self.exit_on_complete = parallely.exit_on_complete;
         self.console_states = parallely
             .commands
             .into_iter()
@@ -67,7 +67,7 @@ impl App {
                 },
                 tasks_end = &mut tasks_future => {
                     tracing::info!("[Main Loop] Tasks End: {:?}", tasks_end);
-                    if !self.should_be_wait {
+                    if !self.exit_on_complete {
                         break Ok(ShutdownReason::End(tasks_end));
                     }
                 },
