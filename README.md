@@ -19,25 +19,27 @@ cargo install parallely
 ```plaintext
 parallely is a command line process parallelization executor.
 
-Usage: parallely [OPTIONS]
+Usage: parallely [OPTIONS] <COMMANDS>...
+
+Arguments:
+  <COMMANDS>...  The commands to run in parallel. e.g. `parallely "echo hello" "echo world"`
 
 Options:
-  -c, --commands <COMMANDS>  The commands to run in parallel. e.g. `parallely -c echo hello -c echo world`
-      --eoc                  Exit on all sub-processes complete
-  -d, --debug                Write log into $(PWD)/logs
-  -h, --help                 Print help
-  -V, --version              Print version
+      --eoc      Exit on all sub-processes complete
+  -d, --debug    Write log into $(PWD)/logs
+  -h, --help     Print help
+  -V, --version  Print version
 ```
 
-### `parallely -c echo hello -c echo world`
+### `parallely "echo hello" "echo world"`
 
 no-exit on all sub-processes complete
 
-### `parallely -c echo hello -c echo world --eoc`
+### `parallely "echo hello" "echo world" --eoc`
 
 exit on all sub-processes complete
 
-### `parallely -c echo hello -c echo world --debug`
+### `parallely "echo hello" "echo world" --debug`
 
 write log into $(PWD)/logs
 

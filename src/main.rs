@@ -61,7 +61,7 @@ fn try_init(parallely: &Parallely) -> color_eyre::Result<Option<WorkerGuard>> {
         hook(info);
     }));
 
-    let guard = if !parallely.debug {
+    let guard = if parallely.debug {
         let filter = EnvFilter::new("debug").add_directive("parallely=debug".parse()?);
 
         let current_dir = std::env::current_dir()?;

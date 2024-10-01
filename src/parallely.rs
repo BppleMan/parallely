@@ -5,8 +5,8 @@ use std::process::ExitStatus;
 #[derive(Default, Debug, Parser)]
 #[command(version, about, author)]
 pub struct Parallely {
-    /// The commands to run in parallel. e.g. `parallely -c echo hello -c echo world`
-    #[arg(short, long)]
+    /// The commands to run in parallel. e.g. `parallely "echo hello" "echo world"`
+    #[arg(value_name = "COMMANDS", required = true)]
     pub commands: Vec<String>,
 
     /// Exit on all sub-processes complete.
