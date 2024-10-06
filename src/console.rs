@@ -1,6 +1,6 @@
 use crate::context::Context;
 use crate::message::MessageSender;
-use crate::task_executor::{Executable, TaskExecutor, TaskOutputReceiver, TaskStatus};
+use crate::task_executor::{Executable, TaskExecutor, TaskOutputReceiver};
 use ansi_to_tui::IntoText;
 use crossterm::event::{MouseEvent, MouseEventKind};
 use ratatui::buffer::Buffer;
@@ -14,6 +14,7 @@ use ratatui::widgets::{
 };
 use std::borrow::Cow;
 use std::cmp::min;
+use std::ops::{Deref, DerefMut};
 
 pub struct Console {
     executor: TaskExecutor,
@@ -60,14 +61,12 @@ impl Console {
     }
 
     pub fn receive(&mut self, width_limit: usize) -> color_eyre::Result<()> {
-        tracing::debug!("Console::receive - start: output_text {}", self.output_text);
         if let Some(output) = self.output.as_mut() {
             while let Ok(line) = output.try_recv() {
                 let wrapped_lines = Self::wrap_text(&line, width_limit);
                 Self::append_text(&mut self.output_text, wrapped_lines);
             }
         }
-        tracing::debug!("Console::receive - end: output_text {}", self.output_text);
         Ok(())
     }
 
@@ -139,10 +138,6 @@ impl StatefulWidget for &mut Console {
         context.try_as_mouse_events().for_each(|mouse_event| {
             self.handle_mouse_event(mouse_event, output_rect, output_scroll_max);
         });
-        tracing::debug!(
-            "Console::render: output_text {}",
-            self.output_text.lines.len()
-        );
         let output = Paragraph::new(self.output_text.clone())
             .scroll((self.output_vertical_scroll as u16, 0))
             .block(output_block);
@@ -164,28 +159,16 @@ impl StatefulWidget for &mut Console {
     }
 }
 
-impl Executable for Console {
-    fn raw_command(&self) -> &str {
-        self.executor.raw_command()
-    }
+impl Deref for Console {
+    type Target = TaskExecutor;
 
-    fn pid(&self) -> Option<u32> {
-        self.executor.pid()
+    fn deref(&self) -> &Self::Target {
+        &self.executor
     }
+}
 
-    fn try_wait(&mut self) -> color_eyre::Result<TaskStatus> {
-        self.executor.try_wait()
-    }
-
-    async fn wait(&mut self) -> color_eyre::Result<TaskStatus> {
-        self.executor.wait().await
-    }
-
-    async fn interrupt(&mut self) -> color_eyre::Result<()> {
-        self.executor.interrupt().await
-    }
-
-    async fn kill(&mut self) -> color_eyre::Result<()> {
-        self.executor.kill().await
+impl DerefMut for Console {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.executor
     }
 }

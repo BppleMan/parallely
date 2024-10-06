@@ -1,7 +1,6 @@
 pub mod child_ext;
 
-use crate::task_executor::child_ext::ChildExt;
-use color_eyre::eyre::eyre;
+use crate::task_executor::child_ext::{ChildExt, ChildSignal};
 use std::fmt::{Display, Formatter};
 use std::process::ExitStatus;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -67,18 +66,30 @@ pub trait Executable {
 
     async fn wait(&mut self) -> color_eyre::Result<TaskStatus>;
 
-    async fn interrupt(&mut self) -> color_eyre::Result<()>;
-
-    async fn interrupt_and_wait(&mut self) -> color_eyre::Result<TaskStatus> {
-        self.interrupt().await?;
-        self.wait().await
-    }
-
     async fn kill(&mut self) -> color_eyre::Result<()>;
 
-    async fn kill_and_wait(&mut self) -> color_eyre::Result<TaskStatus> {
-        self.kill().await?;
-        self.wait().await
+    async fn signal<T>(&mut self, signal: T) -> color_eyre::Result<()>
+    where
+        T: Into<ChildSignal>;
+
+    async fn signal_or_wait<T>(&mut self, signal: T) -> color_eyre::Result<TaskStatus>
+    where
+        T: Into<ChildSignal> + Copy,
+    {
+        match self.try_wait() {
+            Ok(status) => {
+                if matches!(status, TaskStatus::Executing { .. }) {
+                    let result = self.signal(signal).await;
+                    if let Err(e) = result {
+                        self.kill().await?;
+                    }
+                    self.wait().await
+                } else {
+                    Ok(status)
+                }
+            }
+            Err(e) => Err(e),
+        }
     }
 }
 
@@ -149,7 +160,6 @@ impl TaskExecutor {
                     }
                 }
             }
-            tracing::debug!("TaskExecutor::execute - end");
         });
         Ok(output_receiver)
     }
@@ -197,22 +207,28 @@ impl Executable for TaskExecutor {
         }
     }
 
-    async fn interrupt(&mut self) -> color_eyre::Result<()> {
-        if let (Some(child), Some(sender)) = (self.child.as_mut(), self.shutdown_sender.take()) {
-            if sender.send(()).is_err() {
-                return Err(eyre!("Failed to send shutdown signal"));
+    async fn kill(&mut self) -> color_eyre::Result<()> {
+        if let Some(child) = self.child.as_mut() {
+            if let Some(sender) = self.shutdown_sender.take() {
+                let _ = sender.send(());
             }
-            child.interrupt()?;
+            child.kill().await?;
         }
         Ok(())
     }
 
-    async fn kill(&mut self) -> color_eyre::Result<()> {
+    async fn signal<T>(&mut self, signal: T) -> color_eyre::Result<()>
+    where
+        T: Into<ChildSignal>,
+    {
         if let (Some(child), Some(sender)) = (self.child.as_mut(), self.shutdown_sender.take()) {
-            if sender.send(()).is_err() {
-                return Err(eyre!("Failed to send shutdown signal"));
-            }
-            child.kill().await?;
+            let result = if child.send_signal(signal.into()).is_err() {
+                self.kill().await
+            } else {
+                Ok(())
+            };
+            let _ = sender.send(());
+            result?;
         }
         Ok(())
     }

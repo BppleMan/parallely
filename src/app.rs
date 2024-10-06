@@ -21,7 +21,6 @@ pub struct App {
     message_stream: MessageStream,
     shutdown_handler: ShutdownHandler,
     consoles: Vec<Console>,
-    #[allow(unused)]
     exit_on_complete: bool,
 }
 
@@ -44,10 +43,7 @@ impl App {
         }
     }
 
-    pub async fn run(
-        &mut self,
-        mut terminal: DefaultTerminal,
-    ) -> color_eyre::Result<ShutdownReason> {
+    pub async fn run(&mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<AppResult> {
         self.listen_events();
         self.listen_shutdown();
         for console in self.consoles.iter_mut() {
@@ -68,9 +64,9 @@ impl App {
             if !tasks_status
                 .iter()
                 .any(|s| matches!(s, Ok(TaskStatus::Executing { .. })))
+                && self.exit_on_complete
             {
-                tracing::debug!("All tasks completed");
-                break Ok(ShutdownReason::End(tasks_status));
+                break Ok(AppResult::new(tasks_status, ShutdownReason::End));
             }
             tracing::debug!("[Main Loop] Waiting for message");
             if let Some(message) = self.message_stream.next().await {
@@ -83,10 +79,10 @@ impl App {
                         let handles = self
                             .consoles
                             .iter_mut()
-                            .map(|c| c.interrupt_and_wait())
+                            .map(|c| c.signal_or_wait(reason))
                             .collect::<Vec<_>>();
                         let tasks_status = futures::future::join_all(handles).await;
-                        break Ok(ShutdownReason::End(tasks_status));
+                        break Ok(AppResult::new(tasks_status, reason));
                     }
                     Message::EventChunk(events) => {
                         self.handle_events(events, &mut context)?;
@@ -119,7 +115,6 @@ impl App {
                 event::EventStream::new().chunks_timeout(100, std::time::Duration::from_millis(2));
             tokio::pin!(event_stream);
             while let Some(maybe_event) = event_stream.next().await {
-                tracing::debug!("Received event chunk: {}", maybe_event.len());
                 let events = maybe_event.into_iter().flatten().collect::<Vec<_>>();
                 message_sender.send_event_chunk(events);
             }
@@ -160,5 +155,22 @@ impl StatefulWidget for &mut App {
         }
 
         container.render(area, buf);
+    }
+}
+
+pub struct AppResult {
+    pub tasks_status: Vec<color_eyre::Result<TaskStatus>>,
+    pub shutdown_reason: ShutdownReason,
+}
+
+impl AppResult {
+    pub fn new(
+        tasks_status: Vec<color_eyre::Result<TaskStatus>>,
+        shutdown_reason: ShutdownReason,
+    ) -> Self {
+        Self {
+            tasks_status,
+            shutdown_reason,
+        }
     }
 }

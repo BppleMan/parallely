@@ -8,7 +8,6 @@ mod task_executor;
 
 use crate::app::App;
 use crate::parallely::Parallely;
-use crate::shutdown_handler::ShutdownReason;
 use clap::Parser;
 use color_eyre::Help;
 use ratatui::crossterm::ExecutableCommand;
@@ -37,8 +36,7 @@ async fn main() -> color_eyre::Result<()> {
     terminal.clear()?;
 
     let mut app = App::new(parallely);
-    let reason = app.run(terminal).await?;
-    tracing::info!("shutdown with: {:#?}", reason);
+    let result = app.run(terminal).await?;
 
     // ratatui restore
     ratatui::try_restore()
@@ -47,12 +45,10 @@ async fn main() -> color_eyre::Result<()> {
     // self restore
     try_restore()?;
 
-    if let ShutdownReason::End(results) = reason {
-        for result in results {
-            match result {
-                Ok(task_status) => println!("{}", task_status),
-                Err(error) => eprintln!("{}", error),
-            }
+    for result in result.tasks_status {
+        match result {
+            Ok(task_status) => println!("{}", task_status),
+            Err(error) => eprintln!("{}", error),
         }
     }
 

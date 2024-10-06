@@ -1,5 +1,4 @@
 use crate::message::MessageSender;
-use crate::task_executor::TaskStatus;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use tokio::signal;
 
@@ -68,12 +67,12 @@ impl ShutdownHandler {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum ShutdownReason {
     Sigint,
     Sigterm,
     Sigquit,
     CtrlC,
     Quit,
-    End(Vec<color_eyre::Result<TaskStatus>>),
+    End,
 }
