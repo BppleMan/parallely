@@ -50,3 +50,9 @@ write log into $(PWD)/logs
 * parallely can handle standard ansi-color output, but cannot support complete tty commands, such as clear and move
   cursor. Therefore, you cannot get the best experience for processes such as top and vim. Please try tmux/screen.
 * parallely is more suitable for non-interactive pure output scenarios.
+
+# what's new
+
+## v0.2.0
+
+* \<feature\> auto scroll to the bottom when new output comes.
