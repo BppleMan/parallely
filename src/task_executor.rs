@@ -47,7 +47,7 @@ impl Display for TaskStatus {
             } => {
                 write!(
                     f,
-                    "Exited: {} (PID: {}) with status: {}",
+                    "Exited: {} (PID: {}) : {}",
                     command,
                     pid.unwrap_or(0),
                     status
