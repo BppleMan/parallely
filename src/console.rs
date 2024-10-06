@@ -25,6 +25,7 @@ pub struct Console {
     output_vertical_scroll: usize,
     output_vertical_scroll_max: Option<usize>,
     message_sender: MessageSender,
+    scroll_bottom: bool,
 }
 
 impl Console {
@@ -38,6 +39,7 @@ impl Console {
             output_vertical_scroll: 0,
             output_vertical_scroll_max: None,
             message_sender,
+            scroll_bottom: true,
         }
     }
 
@@ -57,14 +59,17 @@ impl Console {
                 self.output_vertical_scroll = match mouse_event.kind {
                     MouseEventKind::ScrollUp => {
                         event.stop_propagation();
+                        self.scroll_bottom = false;
                         self.output_vertical_scroll.saturating_sub(1)
                     }
                     MouseEventKind::ScrollDown => {
                         event.stop_propagation();
-                        min(
+                        let offset = min(
                             self.output_vertical_scroll.saturating_add(1),
                             output_vertical_scroll_max,
-                        )
+                        );
+                        self.scroll_bottom = offset == output_vertical_scroll_max;
+                        offset
                     }
                     _ => self.output_vertical_scroll,
                 }
@@ -147,6 +152,9 @@ impl StatefulWidget for &mut Console {
             .lines
             .len()
             .saturating_sub(output_block.inner(output_rect).height as usize);
+        if self.scroll_bottom {
+            self.output_vertical_scroll = output_scroll_max;
+        }
         let output = Paragraph::new(self.output_text.clone())
             .scroll((self.output_vertical_scroll as u16, 0))
             .block(output_block);
