@@ -1,9 +1,14 @@
 pub mod app;
 pub mod console;
+mod context;
+mod message;
 mod parallely;
+mod shutdown_handler;
+mod task_executor;
 
-use crate::app::{App, ShutdownReason};
+use crate::app::App;
 use crate::parallely::Parallely;
+use crate::shutdown_handler::ShutdownReason;
 use clap::Parser;
 use color_eyre::Help;
 use ratatui::crossterm::ExecutableCommand;
@@ -31,9 +36,9 @@ async fn main() -> color_eyre::Result<()> {
     let mut terminal = ratatui::try_init()?;
     terminal.clear()?;
 
-    let mut app = App::default();
-    let reason = app.run(terminal, parallely).await?;
-    tracing::info!("shutdown with: {:?}", reason);
+    let mut app = App::new(parallely);
+    let reason = app.run(terminal).await?;
+    tracing::info!("shutdown with: {:#?}", reason);
 
     // ratatui restore
     ratatui::try_restore()
@@ -43,10 +48,12 @@ async fn main() -> color_eyre::Result<()> {
     try_restore()?;
 
     if let ShutdownReason::End(results) = reason {
-        results.into_iter().for_each(|result| match result {
-            Ok(result) => println!("{}", result),
-            Err(error) => eprintln!("{}", error),
-        });
+        for result in results {
+            match result {
+                Ok(task_status) => println!("{}", task_status),
+                Err(error) => eprintln!("{}", error),
+            }
+        }
     }
 
     Ok(())
