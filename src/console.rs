@@ -1,8 +1,9 @@
 use crate::context::Context;
+use crate::event::ParallelyEvent;
 use crate::message::MessageSender;
 use crate::task_executor::{Executable, TaskExecutor, TaskOutputReceiver};
 use ansi_to_tui::IntoText;
-use crossterm::event::{MouseEvent, MouseEventKind};
+use crossterm::event::{Event, MouseEventKind};
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Alignment, Constraint, Layout, Margin, Rect};
 use ratatui::style::Stylize;
@@ -20,18 +21,22 @@ pub struct Console {
     executor: TaskExecutor,
     output: Option<TaskOutputReceiver>,
     output_text: Text<'static>,
+    output_rect: Option<Rect>,
     output_vertical_scroll: usize,
+    output_vertical_scroll_max: Option<usize>,
     message_sender: MessageSender,
 }
 
 impl Console {
     pub fn new(command: String, message_sender: MessageSender) -> Self {
-        let executor = TaskExecutor::new(command);
+        let executor = TaskExecutor::new(command, message_sender.clone());
         Self {
             executor,
             output: None,
+            output_rect: None,
             output_text: Text::default(),
             output_vertical_scroll: 0,
+            output_vertical_scroll_max: None,
             message_sender,
         }
     }
@@ -42,20 +47,27 @@ impl Console {
         Ok(())
     }
 
-    fn handle_mouse_event(
-        &mut self,
-        mouse_event: &MouseEvent,
-        rect: Rect,
-        output_scroll_max: usize,
-    ) {
-        if rect.contains((mouse_event.column, mouse_event.row).into()) {
-            self.output_vertical_scroll = match mouse_event.kind {
-                MouseEventKind::ScrollUp => self.output_vertical_scroll.saturating_sub(1),
-                MouseEventKind::ScrollDown => min(
-                    self.output_vertical_scroll.saturating_add(1),
-                    output_scroll_max,
-                ),
-                _ => self.output_vertical_scroll,
+    pub fn handle_event(&mut self, event: &mut ParallelyEvent) {
+        if let (Event::Mouse(mouse_event), Some(output_rect), Some(output_vertical_scroll_max)) = (
+            event.as_ref(),
+            self.output_rect,
+            self.output_vertical_scroll_max,
+        ) {
+            if output_rect.contains((mouse_event.column, mouse_event.row).into()) {
+                self.output_vertical_scroll = match mouse_event.kind {
+                    MouseEventKind::ScrollUp => {
+                        event.stop_propagation();
+                        self.output_vertical_scroll.saturating_sub(1)
+                    }
+                    MouseEventKind::ScrollDown => {
+                        event.stop_propagation();
+                        min(
+                            self.output_vertical_scroll.saturating_add(1),
+                            output_vertical_scroll_max,
+                        )
+                    }
+                    _ => self.output_vertical_scroll,
+                }
             }
         }
     }
@@ -95,7 +107,7 @@ impl Console {
 impl StatefulWidget for &mut Console {
     type State = Context;
 
-    fn render(self, area: Rect, buf: &mut Buffer, context: &mut Context)
+    fn render(self, area: Rect, buf: &mut Buffer, _context: &mut Context)
     where
         Self: Sized,
     {
@@ -135,9 +147,6 @@ impl StatefulWidget for &mut Console {
             .lines
             .len()
             .saturating_sub(output_block.inner(output_rect).height as usize);
-        context.try_as_mouse_events().for_each(|mouse_event| {
-            self.handle_mouse_event(mouse_event, output_rect, output_scroll_max);
-        });
         let output = Paragraph::new(self.output_text.clone())
             .scroll((self.output_vertical_scroll as u16, 0))
             .block(output_block);
@@ -156,6 +165,9 @@ impl StatefulWidget for &mut Console {
             buf,
             &mut scrollbar_state,
         );
+
+        self.output_rect = Some(output_rect);
+        self.output_vertical_scroll_max = Some(output_scroll_max);
     }
 }
 

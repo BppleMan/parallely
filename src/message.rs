@@ -1,3 +1,4 @@
+use crate::event::ParallelyEvent;
 use crate::shutdown_handler::ShutdownReason;
 use futures::Stream;
 use std::pin::Pin;
@@ -16,7 +17,7 @@ pub fn message_queue() -> (MessageSender, MessageStream) {
 pub enum Message {
     Error(color_eyre::Report),
     Shutdown(ShutdownReason),
-    EventChunk(Vec<crossterm::event::Event>),
+    EventChunk(Vec<ParallelyEvent>),
     Update,
 }
 
@@ -32,8 +33,8 @@ impl From<color_eyre::Report> for Message {
     }
 }
 
-impl From<Vec<crossterm::event::Event>> for Message {
-    fn from(value: Vec<crossterm::event::Event>) -> Self {
+impl From<Vec<ParallelyEvent>> for Message {
+    fn from(value: Vec<ParallelyEvent>) -> Self {
         Self::EventChunk(value)
     }
 }
@@ -70,13 +71,13 @@ impl MessageSender {
         }
     }
 
-    pub fn send_event_chunk(&self, events: Vec<crossterm::event::Event>) {
+    pub fn send_event_chunk(&self, events: Vec<ParallelyEvent>) {
         if let Err(e) = self.send(events) {
             self.send_error(e);
         }
     }
 
-    pub fn new_update(&self) {
+    pub fn need_update(&self) {
         if let Err(e) = self.send(Message::Update) {
             self.send_error(e);
         }

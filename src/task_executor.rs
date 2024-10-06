@@ -1,5 +1,6 @@
 pub mod child_ext;
 
+use crate::message::MessageSender;
 use crate::task_executor::child_ext::{ChildExt, ChildSignal};
 use std::fmt::{Display, Formatter};
 use std::process::ExitStatus;
@@ -99,10 +100,11 @@ pub struct TaskExecutor {
     child: Option<Child>,
     pid: Option<u32>,
     shutdown_sender: Option<oneshot::Sender<()>>,
+    message_sender: MessageSender,
 }
 
 impl TaskExecutor {
-    pub fn new(raw_command: String) -> Self {
+    pub fn new(raw_command: String, message_sender: MessageSender) -> Self {
         let mut args = raw_command.split_whitespace().collect::<Vec<_>>();
         let mut command = Command::new(args.remove(0));
         command
@@ -116,12 +118,14 @@ impl TaskExecutor {
             child: None,
             pid: None,
             shutdown_sender: None,
+            message_sender,
         }
     }
 
     pub fn execute(&mut self) -> color_eyre::Result<TaskOutputReceiver> {
         let (shutdown_sender, mut shutdown_receiver) = oneshot::channel();
         let (output_sender, output_receiver) = mpsc::unbounded_channel();
+        let message_sender = self.message_sender.clone();
         let mut child = self.command.spawn()?;
         let mut stdout = BufReader::new(child.stdout.take().unwrap()).lines();
         let mut stderr = BufReader::new(child.stderr.take().unwrap()).lines();
@@ -159,6 +163,7 @@ impl TaskExecutor {
                         }
                     }
                 }
+                message_sender.need_update();
             }
         });
         Ok(output_receiver)

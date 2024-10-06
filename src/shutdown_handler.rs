@@ -1,3 +1,4 @@
+use crate::event::ParallelyEvent;
 use crate::message::MessageSender;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use tokio::signal;
@@ -41,28 +42,29 @@ impl ShutdownHandler {
         Ok(())
     }
 
-    pub fn handle_events(&mut self, events: &[Event]) {
-        for event in events {
-            if let Event::Key(KeyEvent {
-                code,
-                modifiers,
-                kind: KeyEventKind::Press,
-                ..
-            }) = event
-            {
-                match (code, modifiers) {
-                    (KeyCode::Char('q'), _) => {
-                        self.message_sender.send_shutdown(ShutdownReason::Quit)
-                    }
-                    (KeyCode::Char('c'), &KeyModifiers::CONTROL) => {
-                        self.message_sender.send_shutdown(ShutdownReason::CtrlC)
-                    }
-                    (KeyCode::Char('\\'), &KeyModifiers::CONTROL) => {
-                        self.message_sender.send_shutdown(ShutdownReason::Sigquit)
-                    }
-                    _ => {}
-                };
-            }
+    pub fn handle_event(&mut self, event: &mut ParallelyEvent) {
+        if let Event::Key(KeyEvent {
+            code,
+            modifiers,
+            kind: KeyEventKind::Press,
+            ..
+        }) = event.as_ref()
+        {
+            match (code, modifiers) {
+                (KeyCode::Char('q'), _) => {
+                    self.message_sender.send_shutdown(ShutdownReason::Quit);
+                    event.stop_propagation();
+                }
+                (KeyCode::Char('c'), &KeyModifiers::CONTROL) => {
+                    self.message_sender.send_shutdown(ShutdownReason::CtrlC);
+                    event.stop_propagation();
+                }
+                (KeyCode::Char('\\'), &KeyModifiers::CONTROL) => {
+                    self.message_sender.send_shutdown(ShutdownReason::Sigquit);
+                    event.stop_propagation();
+                }
+                _ => {}
+            };
         }
     }
 }

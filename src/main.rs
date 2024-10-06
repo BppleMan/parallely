@@ -1,6 +1,7 @@
 pub mod app;
 pub mod console;
 mod context;
+mod event;
 mod message;
 mod parallely;
 mod shutdown_handler;

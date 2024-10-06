@@ -1,5 +1,6 @@
 use crate::console::Console;
 use crate::context::Context;
+use crate::event::ParallelyEvent;
 use crate::message;
 use crate::message::{Message, MessageSender, MessageStream};
 use crate::parallely::Parallely;
@@ -7,7 +8,6 @@ use crate::shutdown_handler::{ShutdownHandler, ShutdownReason};
 use crate::task_executor::{Executable, TaskStatus};
 use ratatui::buffer::Buffer;
 use ratatui::crossterm::event;
-use ratatui::crossterm::event::Event;
 use ratatui::layout::{Alignment, Constraint, Flex, Layout, Rect};
 use ratatui::style::Stylize;
 use ratatui::text::Line;
@@ -53,9 +53,9 @@ impl App {
         let mut context = Context::default();
 
         loop {
-            tracing::debug!("[Main Loop] Drawing frame");
+            tracing::trace!("[Main Loop] Drawing frame");
             terminal.draw(|frame| self.draw(frame, &mut context))?;
-            tracing::debug!("[Main Loop] Try-Waiting for events");
+            tracing::trace!("[Main Loop] Try-Waiting for events");
             let tasks_status = self
                 .consoles
                 .iter_mut()
@@ -68,14 +68,14 @@ impl App {
             {
                 break Ok(AppResult::new(tasks_status, ShutdownReason::End));
             }
-            tracing::debug!("[Main Loop] Waiting for message");
+            tracing::trace!("[Main Loop] Waiting for message");
             if let Some(message) = self.message_stream.next().await {
                 match message {
                     Message::Error(error) => {
                         tracing::error!("[Main Loop] Error: {:?}", error);
                     }
                     Message::Shutdown(reason) => {
-                        tracing::info!("[Main Loop] Shutdown: {:?}", reason);
+                        tracing::trace!("[Main Loop] Shutdown: {:?}", reason);
                         let handles = self
                             .consoles
                             .iter_mut()
@@ -85,9 +85,11 @@ impl App {
                         break Ok(AppResult::new(tasks_status, reason));
                     }
                     Message::EventChunk(events) => {
-                        self.handle_events(events, &mut context)?;
+                        self.handle_events(events)?;
                     }
-                    Message::Update => {}
+                    Message::Update => {
+                        tracing::trace!("[Main Loop] Update");
+                    }
                 }
             }
         }
@@ -97,14 +99,18 @@ impl App {
         frame.render_stateful_widget(self, frame.area(), context);
     }
 
-    fn handle_events(
-        &mut self,
-        events: Vec<Event>,
-        context: &mut Context,
-    ) -> color_eyre::Result<()> {
-        self.shutdown_handler.handle_events(&events);
-        context.event_chunk.clear();
-        context.event_chunk.extend(events);
+    fn handle_events(&mut self, events: Vec<ParallelyEvent>) -> color_eyre::Result<()> {
+        for mut event in events {
+            if event.propagate() {
+                self.shutdown_handler.handle_event(&mut event);
+            }
+            for console in self.consoles.iter_mut() {
+                if !event.propagate() {
+                    break;
+                }
+                console.handle_event(&mut event);
+            }
+        }
         Ok(())
     }
 
@@ -115,7 +121,11 @@ impl App {
                 event::EventStream::new().chunks_timeout(100, std::time::Duration::from_millis(2));
             tokio::pin!(event_stream);
             while let Some(maybe_event) = event_stream.next().await {
-                let events = maybe_event.into_iter().flatten().collect::<Vec<_>>();
+                let events = maybe_event
+                    .into_iter()
+                    .flatten()
+                    .map(Into::into)
+                    .collect::<Vec<_>>();
                 message_sender.send_event_chunk(events);
             }
         });
@@ -150,7 +160,6 @@ impl StatefulWidget for &mut App {
         .split(container.inner(area));
 
         for (index, rect) in areas.iter().enumerate() {
-            tracing::debug!("[Main Loop] Rendering console {}", index);
             self.consoles[index].render(*rect, buf, context);
         }
 
